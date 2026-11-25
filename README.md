@@ -15,7 +15,7 @@ Where is hydrant coverage densest in NYC, and which neighborhoods are underserve
 
 Built the same analysis twice:
 
-- **SQL (PostGIS).** Five progressive queries in `analysis.sql`, going from simple filter to spatial join to area-normalized density to 100m-buffer coverage analysis.
+- **SQL (DuckDB + spatial extension).** Five progressive queries in `analysis.sql`, going from simple filter to spatial join to area-normalized density to 100m-buffer coverage analysis.
 - **Python (GeoPandas).** Equivalent pipeline in `analysis.ipynb`, with a static choropleth and interactive `.explore()` map. Final output exported to GeoParquet.
 
 Both pipelines produce the same density values to within rounding. The Python version produces the visualization. The SQL version runs against a database at scale.
@@ -34,22 +34,42 @@ Both pipelines produce the same density values to within rounding. The Python ve
 
 ## How to run it
 
-Requires Docker (for PostGIS) and Python 3.11+ with GeoPandas.
+Requires Python 3.11+ with GeoPandas and DuckDB. No Docker or database server needed.
 
 ```bash
-git clone https://github.com/{your-username}/nyc-hydrant-analysis.git
+git clone https://github.com/tomtom776/nyc-hydrant-analysis.git
 cd nyc-hydrant-analysis
 
-# Start the PostGIS template (copy from R2.4 docker-templates/postgis/)
-docker compose -f docker/postgis/docker-compose.yml up -d
+pip install duckdb geopandas jupyterlab matplotlib
 
-# Load NYC Open Data into PostGIS (your script of choice)
-# Then run the SQL pipeline
-psql -h localhost -U gisuser -d nyc -f analysis.sql
+# Get the data (see "Getting the data" below) and save the GeoPackage as
+# data/raw/Exercise2_HydrantNYC.gpkg
+
+# Run the SQL pipeline (creates nyc.duckdb)
+duckdb nyc.duckdb < analysis.sql
 
 # Then the Python pipeline
 jupyter lab analysis.ipynb
 ```
+
+The first run downloads DuckDB's `spatial` extension (`INSTALL spatial;`), so it
+needs internet access once.
+
+### Getting the data
+
+The raw data is not committed (`data/raw/` is git-ignored). To recreate it:
+
+1. Download both layers from NYC Open Data as GeoJSON:
+   - Neighborhoods (2020 NTAs): https://data.cityofnewyork.us/api/v3/views/9nt8-h7nd/query.geojson
+   - Fire hydrants: https://data.cityofnewyork.us/api/v3/views/5bgh-vtsn/query.geojson
+2. Load them into one GeoPackage (for example in QGIS: **Layer → Save Features As**,
+   format GeoPackage) with these layer names, both in EPSG:4326:
+   - `nyc_neighborhoods` (262 polygons)
+   - `nyc_hydrants` (109,725 points)
+3. Save it as `data/raw/Exercise2_HydrantNYC.gpkg`.
+
+`analysis.sql` expects that exact path and those layer names. Each layer's
+geometry column should be called `geom`.
 
 ## What I learned
 
@@ -57,7 +77,7 @@ jupyter lab analysis.ipynb
 
 ## Stack
 
-- PostGIS 16-3.4 (via Docker)
+- DuckDB + spatial extension
 - GeoPandas + SQLAlchemy + matplotlib
 - Jupyter Lab
 - GeoParquet
